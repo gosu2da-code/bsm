@@ -127,9 +127,9 @@ function renderInputs(){
     <div class="cin">
       <label>이름</label><input data-i="${i}" data-k="name" value="${String(c.name ?? '').replace(/[&"<]/g, m => ({'&':'&amp;','"':'&quot;','<':'&lt;'})[m])}" placeholder="원${i+1}">
       <label>시작 시각</label><input data-i="${i}" data-k="t0" type="datetime-local" value="${c.t0 ?? ''}">
-      <label>시작 가격</label><input data-i="${i}" data-k="p0" type="number" step="0.01" inputmode="decimal" value="${c.p0 ?? ''}">
+      <label>시작 가격</label><input data-i="${i}" data-k="p0" type="number" readonly tabindex="-1" value="${c.p0 ?? ''}">
       <label>꼭지 시각</label><input data-i="${i}" data-k="t1" type="datetime-local" value="${c.t1 ?? ''}">
-      <label>꼭지 가격</label><input data-i="${i}" data-k="p1" type="number" step="0.01" inputmode="decimal" value="${c.p1 ?? ''}">
+      <label>꼭지 가격</label><input data-i="${i}" data-k="p1" type="number" readonly tabindex="-1" value="${c.p1 ?? ''}">
       <label>목표 시각</label><input data-i="${i}" data-auto="t2" type="datetime-local" readonly tabindex="-1" value="${target(c).t2}">
       <label>목표 가격</label><input data-i="${i}" data-auto="p2" type="number" readonly tabindex="-1" value="${target(c).p2}">
       <button class="del" data-del="${i}">삭제</button>
