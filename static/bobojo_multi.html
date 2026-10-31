@@ -118,6 +118,9 @@ $('circles').addEventListener('input', e => {
   circles[+el.dataset.i][el.dataset.k] = el.value;
   $('msg').textContent = '저장 안 된 변경 있음'; drawAll(true);
 });
+$('circles').addEventListener('change', e => {
+  if (e.target.dataset.k === 't0') fillStartPrice(+e.target.dataset.i);
+});
 $('circles').addEventListener('click', e => {
   if (e.target.dataset.del == null) return;
   circles.splice(+e.target.dataset.del, 1); tab = 0;
@@ -135,10 +138,32 @@ $('save').onclick = async () => {
 };
 
 /* ---------- 가격 ---------- */
-function priceAt(ts){                     // ts 시점의 5분봉 종가 (봉이 없으면 NaN)
-  let lo = 0, hi = candles.length - 1, ans = -1;
-  while (lo <= hi){ const m = (lo + hi) >> 1; if (candles[m].t <= ts){ ans = m; lo = m + 1; } else hi = m - 1; }
-  return ans < 0 ? NaN : candles[ans].c;
+function barAt(list, ts){                 // ts 가 들어 있는 5분봉 (없으면 null)
+  let lo = 0, hi = list.length - 1, ans = -1;
+  while (lo <= hi){ const m = (lo + hi) >> 1; if (list[m].t <= ts){ ans = m; lo = m + 1; } else hi = m - 1; }
+  return ans < 0 ? null : list[ans];
+}
+function priceAt(ts){ const b = barAt(candles, ts); return b ? b.c : NaN; }   // ts 시점의 5분봉 종가
+
+/* 시작 시각을 넣으면 그 시각 5분봉의 시가로 시작 가격 자동 입력 */
+async function fillStartPrice(i){
+  const c = circles[i], v = c.t0, ts = kst(v);
+  if (!isFinite(ts)) return;
+  if (ts > Date.now()){ $('msg').textContent = '시작 시각이 미래라서 가격을 못 불러와요'; return; }
+  $('msg').textContent = '시작 가격 불러오는 중…';
+  try {
+    const r = await fetch('/api/candles?sym=SNDK&start=' + (ts - 10 * 60e3), { cache:'no-store' });
+    if (!r.ok) throw 0;
+    const b = barAt((await r.json()).sort((a, b) => a.t - b.t), ts);
+    if (circles[i] !== c || c.t0 !== v) return;       // 그사이 다시 바꿨으면 무시
+    if (!b){ $('msg').textContent = '그 시각 가격이 없어요 (5분봉은 약 17일 전까지만)'; return; }
+    const p = b.o ?? b.c;
+    c.p0 = String(p);
+    const el = $('circles').querySelector(`[data-i="${i}"][data-k="p0"]`);
+    if (el) el.value = c.p0;
+    $('msg').textContent = `시작 가격 자동 입력: ${fmt(p)} · 저장 안 된 변경 있음`;
+    drawAll(true);
+  } catch(e){ $('msg').textContent = '시작 가격 못 불러옴: 서버 연결 확인'; }
 }
 function lastOpenMs(t){ let n = 0; while (closedWhy(t) && n++ < 24*14) t = Math.floor(t/3600e3)*3600e3 - 60e3; return t; }
 
