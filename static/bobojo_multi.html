@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>멀티보조</title>
+<style>
+  :root{ --bg:#000; --panel:#0b0d10; --line:#1c2026; --text:#e6e9ed; --dim:#6b7380;
+         --up:#3f6c97; --down:#b5452f; --warn:#d9822b; --blue:#4f8fd0; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px}
+  header b{font-weight:600}
+  .badge{padding:2px 8px;border-radius:4px;font-size:11px;background:#3a2a00;color:#ffcc55}
+  .badge.live{background:#0d3b33;color:#5fe0c0} .badge.err{background:#4a1018;color:#ff8a99}
+  header .px{font-variant-numeric:tabular-nums;font-weight:600}
+  header a{margin-left:auto;color:var(--dim);font-size:12px;text-decoration:none}
+  main{padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+
+  /* 입력 */
+  details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  summary{cursor:pointer;font-size:14px;color:var(--dim)}
+  .circles{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:10px}
+  .cin{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 8px;align-items:center;font-size:13px}
+  .cin label{color:var(--dim);white-space:nowrap}
+  .cin input{font-size:14px;font-family:inherit;padding:5px 7px;background:#11151a;color:var(--text);border:1px solid #262c34;border-radius:6px;width:100%;min-width:0;min-height:34px;color-scheme:dark}
+  @media (pointer:coarse){ .cin input{font-size:16px;-webkit-appearance:none;appearance:none} }
+  .cin .del{grid-column:1/3;justify-self:end;background:#2a1418;color:#ff8a99;font-size:12px;padding:4px 10px}
+  .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  button{font-size:14px;padding:7px 14px;border-radius:7px;border:0;background:#2d5f80;color:#fff;cursor:pointer}
+  button:disabled{opacity:.45;cursor:default}
+  .msg{font-size:12px;color:var(--dim)}
+
+  /* 탭 (폰) */
+  .tabs{display:none;gap:6px;overflow-x:auto}
+  .tab{background:#14181d;color:var(--dim);border:1px solid var(--line);font-size:13px;padding:6px 10px;white-space:nowrap}
+  .tab.on{color:var(--text);border-color:var(--text)}
+  .tab .v{font-variant-numeric:tabular-nums;margin-left:4px}
+
+  /* 패널 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .pn{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px 6px}
+  .ph{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
+  .ph .nm{font-weight:600;font-size:14px}
+  .ph .pt{font-size:11px;padding:1px 7px;border-radius:4px;color:#fff}
+  .ph .big{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .ph .meta{color:var(--dim);font-variant-numeric:tabular-nums}
+  .ph .st{font-size:12px;font-weight:600}
+  .pn svg{width:100%;height:auto;display:block;margin-top:4px}
+  .empty{color:var(--dim);font-size:13px;padding:30px 0;text-align:center}
+
+  @media (max-width:899px){
+    .grid{grid-template-columns:1fr}
+    .tabs{display:flex}
+    .pn{display:none} .pn.on{display:block}
+  }
+</style>
+</head>
+<body>
+<header>
+  <b>멀티보조</b><span class="badge" id="badge">연결 중…</span>
+  <span class="meta">SNDK</span><span class="px" id="px">—</span>
+  <a href="/bobojo">← 보보조</a>
+</header>
+<main>
+  <details id="edit">
+    <summary>원 입력 (최대 4개)</summary>
+    <div class="circles" id="circles"></div>
+    <div class="row">
+      <button id="add">+ 원 추가</button>
+      <button id="save">저장</button>
+      <span class="msg" id="msg"></span>
+    </div>
+  </details>
+  <div class="tabs" id="tabs"></div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<script>
+/* ---------- 시간: 평일 24시간, 주말·미국 휴장일 제외 (보보조와 같은 기준) ---------- */
+const HOL = new Set(["2026-11-26","2026-12-25","2027-01-01"]);   // 미국 휴장일 (연말에 내년 거 추가)
+const etFmt = new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'});
+const closedCache = new Map();
+function closedWhy(ms){             // 경계가 정시라서 1시간 단위로 캐시
+  const h = Math.floor(ms / 3600e3);
+  if (closedCache.has(h)) return closedCache.get(h);
+  const p = Object.fromEntries(etFmt.formatToParts(new Date(h*3600e3 + 4*3600e3)).map(x => [x.type, x.value]));
+  let w = null;
+  if (p.weekday === 'Sat' || p.weekday === 'Sun') w = '주말';
+  else if (HOL.has(`${p.year}-${p.month}-${p.day}`)) w = '미국 휴장일';
+  closedCache.set(h, w); return w;
+}
+function tradeMin(a, b){ if (!(b > a)) return 0; let n = 0; for (let t = a; t < b; t += 60e3) if (!closedWhy(t)) n++; return n; }
+const kst = s => s ? Date.parse(s + ':00+09:00') : NaN;
+const $ = id => document.getElementById(id);
+const fmt = v => v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ---------- 상태 ---------- */
+const SLOTS = 24, STEP = 0.05;     // 5% 칸 24개 = 0~120%
+let circles = [], live = { price: NaN, t: 0, stale: true }, candles = [], tab = 0, fails = 0;
+
+/* ---------- 입력칸 ---------- */
+function renderInputs(){
+  $('circles').innerHTML = circles.map((c, i) => `
+    <div class="cin">
+      <label>이름</label><input data-i="${i}" data-k="name" value="${String(c.name ?? '').replace(/[&"<]/g, m => ({'&':'&amp;','"':'&quot;','<':'&lt;'})[m])}" placeholder="원${i+1}">
+      <label>시작 시각</label><input data-i="${i}" data-k="t0" type="datetime-local" value="${c.t0 ?? ''}">
+      <label>시작 가격</label><input data-i="${i}" data-k="p0" type="number" step="0.01" inputmode="decimal" value="${c.p0 ?? ''}">
+      <label>꼭지 시각</label><input data-i="${i}" data-k="t1" type="datetime-local" value="${c.t1 ?? ''}">
+      <label>꼭지 가격</label><input data-i="${i}" data-k="p1" type="number" step="0.01" inputmode="decimal" value="${c.p1 ?? ''}">
+      <button class="del" data-del="${i}">삭제</button>
+    </div>`).join('');
+  $('add').disabled = circles.length >= 4;
+}
+$('circles').addEventListener('input', e => {
+  const el = e.target; if (!el.dataset.k) return;
+  circles[+el.dataset.i][el.dataset.k] = el.value;
+  $('msg').textContent = '저장 안 된 변경 있음'; drawAll(true);
+});
+$('circles').addEventListener('click', e => {
+  if (e.target.dataset.del == null) return;
+  circles.splice(+e.target.dataset.del, 1); tab = 0;
+  renderInputs(); $('msg').textContent = '저장 안 된 변경 있음'; drawAll(true); pullCandles();
+});
+$('add').onclick = () => { if (circles.length < 4){ circles.push({name:'',t0:'',p0:'',t1:'',p1:''}); renderInputs(); drawAll(true); } };
+$('save').onclick = async () => {
+  $('save').disabled = true;
+  try {
+    const r = await fetch('/api/multi', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({circles}) });
+    $('msg').textContent = r.ok ? '저장됨 · ' + new Date().toLocaleTimeString('ko-KR',{hour12:false}) : '저장 실패: 빈칸이나 입력값 확인';
+    if (r.ok) pullCandles();
+  } catch(e){ $('msg').textContent = '저장 실패: 서버 연결 확인'; }
+  $('save').disabled = false;
+};
+
+/* ---------- 가격 ---------- */
+function priceAt(ts){                     // ts 시점의 5분봉 종가 (봉이 없으면 NaN)
+  let lo = 0, hi = candles.length - 1, ans = -1;
+  while (lo <= hi){ const m = (lo + hi) >> 1; if (candles[m].t <= ts){ ans = m; lo = m + 1; } else hi = m - 1; }
+  return ans < 0 ? NaN : candles[ans].c;
+}
+function lastOpenMs(t){ let n = 0; while (closedWhy(t) && n++ < 24*14) t = Math.floor(t/3600e3)*3600e3 - 60e3; return t; }
+
+/* ---------- 원 하나 계산 ----------
+   도착 예상 = 꼭지에서 지금 가격을 관통한 선을 끝(시간 100%)까지 연장한 가격
+   막대 = 빨간 선이 파란 선(꼭지→목표)보다 위면 +, 아래면 -, 다리 폭 대비, ±100%에서 자름
+   V : 수평(하꼭지 높이) = -100% 패턴 깨짐 / +100% 초과 달성
+   ^ : 수평(상꼭지 높이) = +100% 패턴 깨짐 / -100% 초과 달성 */
+function calc(c){
+  const t0 = kst(c.t0), t1 = kst(c.t1), p0 = parseFloat(c.p0), p1 = parseFloat(c.p1);
+  if (![t0,t1,p0,p1].every(isFinite)) return { err:'빈칸이 있어요' };
+  if (p0 === p1) return { err:'시작 가격과 꼭지 가격이 같아요' };
+  if (!(t1 > t0)) return { err:'꼭지 시각이 시작보다 뒤여야 해요' };
+  const legT = tradeMin(t0, t1);
+  if (!legT) return { err:'시작~꼭지 사이 거래 시간이 0이에요' };
+  const up = p1 < p0, leg = Math.abs(p0 - p1), now = Date.now();
+  const val = (price, f) => {
+    const q = up ? (price - p1) / leg : (p1 - price) / leg;   // 가격 진행률
+    const r = q / f;                                          // 도착 예상 진행률
+    return { v: up ? r - 1 : 1 - r, proj: up ? p1 + leg * r : p1 - leg * r };
+  };
+  // 5% 칸 경계 시각 (거래 시간 기준)
+  const bars = [], need = SLOTS;
+  let cnt = 0, k = 1, target = Math.round(STEP * legT);
+  for (let t = t1; t <= now && k <= need; t += 60e3){
+    if (!closedWhy(t)){ cnt++;
+      while (k <= need && cnt >= Math.round(k * STEP * legT)){
+        const p = priceAt(t + 60e3);
+        if (isFinite(p)) bars[k-1] = val(p, k * STEP).v;
+        k++;
+      }
+    }
+  }
+  const done = tradeMin(t1, now), fNow = done / legT;
+  const closed = closedWhy(now);
+  const pNow = closed ? priceAt(lastOpenMs(now)) : live.price;
+  let cur = null;
+  if (fNow > 0 && isFinite(pNow)) cur = { ...val(pNow, fNow), slot: Math.min(SLOTS, Math.floor(fNow / STEP)), f: fNow, p: pNow };
+  return { up, leg, p0, p1, legT, bars, cur, closed, over: fNow > SLOTS * STEP };
+}
+
+/* ---------- 패널 그리기 ---------- */
+const W = 480, Hh = 200, PADL = 34, PADR = 8, TOP = 10, BOT = 22;
+const plotH = Hh - TOP - BOT, midY = TOP + plotH / 2, slotW = (W - PADL - PADR) / SLOTS;
+const yv = v => midY - Math.max(-1, Math.min(1, v)) * plotH / 2;
+function svgPanel(res){
+  let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img">`;
+  for (const [v, lb] of [[1,'+100'],[0.5,''],[0,'0'],[-0.5,''],[-1,'-100']]){
+    s += `<line x1="${PADL}" x2="${W-PADR}" y1="${yv(v)}" y2="${yv(v)}" stroke="${v===0?'#4a525c':'#1c2026'}" stroke-width="${v===0?1.2:1}"/>`;
+    if (lb) s += `<text x="${PADL-5}" y="${yv(v)+4}" font-size="10" fill="#6b7380" text-anchor="end">${lb}</text>`;
+  }
+  const x100 = PADL + slotW * 20;
+  s += `<line x1="${x100}" x2="${x100}" y1="${TOP}" y2="${Hh-BOT}" stroke="#3a4048" stroke-dasharray="3 3"/>`;
+  for (const [i, lb] of [[0,'0%'],[10,'50%'],[20,'100%'],[24,'120%']])
+    s += `<text x="${PADL + slotW*i}" y="${Hh-6}" font-size="10" fill="#6b7380" text-anchor="${i===24?'end':i===0?'start':'middle'}">${lb}</text>`;
+  const bar = (i, v, live) => {
+    const x = PADL + slotW * i + 1.5, w = slotW - 3, y0 = midY, y1 = yv(v);
+    const col = v >= 0 ? 'var(--up)' : 'var(--down)';
+    return live
+      ? `<rect x="${x}" y="${Math.min(y0,y1)}" width="${w}" height="${Math.max(1,Math.abs(y1-y0))}" fill="none" stroke="${col}" stroke-width="2" rx="2"/>`
+      : `<rect x="${x}" y="${Math.min(y0,y1)}" width="${w}" height="${Math.max(1,Math.abs(y1-y0))}" fill="${col}" rx="2"/>`;
+  };
+  res.bars.forEach((v, i) => { if (v != null && isFinite(v) && !(res.cur && i === res.cur.slot)) s += bar(i, v, false); });
+  if (res.cur && res.cur.slot < SLOTS) s += bar(res.cur.slot, res.cur.v, true);
+  return s + '</svg>';
+}
+function status(res){
+  if (!res.cur) return { t:'', c:'' };
+  const v = res.cur.v;
+  if (res.up ? res.cur.p < res.p1 : res.cur.p > res.p1) return { t:'꼭지 깨짐', c:'var(--down)' };
+  if (res.up ? v <= -1 : v >= 1) return { t:'패턴 깨짐', c:'var(--down)' };
+  if (res.up ? v >= 1 : v <= -1) return { t:'초과 달성', c:'var(--up)' };
+  if (res.over) return { t:'120% 지남', c:'var(--warn)' };
+  return { t:'', c:'' };
+}
+
+let lastStatic = '';
+function drawAll(force){
+  const results = circles.map(calc);
+  if (!circles.length){
+    $('grid').innerHTML = '<div class="pn on"><div class="empty">원 입력에서 원을 추가하세요</div></div>';
+    $('tabs').innerHTML = ''; return;
+  }
+  tab = Math.min(tab, circles.length - 1);
+  $('tabs').innerHTML = results.map((r, i) => {
+    const nm = circles[i].name || `원${i+1}`;
+    const v = r.cur ? Math.round(Math.max(-1, Math.min(1, r.cur.v)) * 100) : null;
+    return `<button class="tab ${i===tab?'on':''}" data-tab="${i}">${nm}<span class="v" style="color:${v==null?'var(--dim)':v>=0?'var(--blue)':'#e0705a'}">${v==null?'—':(v>0?'+':'')+v+'%'}</span></button>`;
+  }).join('');
+  $('grid').innerHTML = results.map((r, i) => {
+    const nm = circles[i].name || `원${i+1}`;
+    if (r.err) return `<div class="pn ${i===tab?'on':''}"><div class="ph"><span class="nm">${nm}</span></div><div class="empty" style="color:var(--warn)">${r.err}</div></div>`;
+    const st = status(r);
+    const v = r.cur ? Math.round(Math.max(-1, Math.min(1, r.cur.v)) * 100) : null;
+    const head = r.cur
+      ? `<span class="big" style="color:${v>=0?'var(--blue)':'#e0705a'}">${(v>0?'+':'')+v}%</span>
+         <span class="meta">도착 예상 ${fmt(r.cur.proj)} · 목표 ${fmt(r.p0)} · 시간 ${Math.round(r.cur.f*100)}%${r.closed?' · 장 쉼':''}</span>`
+      : `<span class="meta">가격 대기 중</span>`;
+    return `<div class="pn ${i===tab?'on':''}">
+      <div class="ph"><span class="nm">${nm}</span>
+        <span class="pt" style="background:${r.up?'var(--up)':'var(--down)'}">${r.up?'V':'^'}</span>
+        ${head}<span class="st" style="color:${st.c}">${st.t}</span></div>
+      ${svgPanel(r)}</div>`;
+  }).join('');
+}
+$('tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b){ tab = +b.dataset.tab; drawAll(); } });
+
+/* ---------- 서버 ---------- */
+async function pullPrice(){
+  try {
+    const d = await (await fetch('/api/quote?sym=SNDK', { cache:'no-store' })).json();
+    if (d.price) live = { price: d.price, t: d.t * 1000, stale: d.stale };
+    fails = 0;
+    $('badge').className = 'badge live'; $('badge').textContent = live.stale ? 'LIVE · 가격 멈춤' : 'LIVE';
+  } catch(e){ if (++fails >= 2){ $('badge').className = 'badge err'; $('badge').textContent = '서버 연결 끊김'; } }
+  $('px').textContent = isFinite(live.price) ? fmt(live.price) : '—';
+  drawAll();
+}
+async function pullCandles(){
+  const t1s = circles.map(c => kst(c.t1)).filter(isFinite);
+  if (!t1s.length) return;
+  const start = Math.min(...t1s) - 10 * 60e3;
+  try {
+    const r = await fetch('/api/candles?sym=SNDK&start=' + start, { cache:'no-store' });
+    if (r.ok) candles = (await r.json()).sort((a, b) => a.t - b.t);
+  } catch(e){}
+  drawAll();
+}
+async function load(){
+  try {
+    const d = await (await fetch('/api/multi', { cache:'no-store' })).json();
+    circles = (d.circles || []).map(c => ({ ...c }));
+    if (d.saved) $('msg').textContent = '저장된 값 불러옴 · ' + new Date(d.saved*1000).toLocaleString('ko-KR',{hour12:false,timeZone:'Asia/Seoul'});
+  } catch(e){ $('msg').textContent = '저장된 값 못 불러옴'; }
+  if (!circles.length){ circles.push({name:'',t0:'',p0:'',t1:'',p1:''}); $('edit').open = true; }
+  renderInputs(); drawAll(); pullCandles();
+}
+
+load(); pullPrice();
+setInterval(pullPrice, 5000);
+setInterval(pullCandles, 60000);
+</script>
+</body>
+</html>

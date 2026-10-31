@@ -1,0 +1,10 @@
+# 저장 데이터 (서버가 실행 중에 만드는 파일)
+bobojo.json
+bobojo_multi.json
+*.tmp
+
+# KIS 연결 모듈 (API 키 포함 가능)
+kis_core.py
+
+__pycache__/
+.DS_Store
