@@ -364,7 +364,7 @@ class H(BaseHTTPRequestHandler):
         self._send(404, b"not found", "text/plain; charset=utf-8")
 
     def _candles(self, q):
-        """멀티보조용: 하이퍼리퀴드 5분봉 [{t(ms), o, c}] (같은 요청은 30초 캐시)."""
+        """멀티보조용: 하이퍼리퀴드 5분봉 [{t(ms), o, h, l, c}] (같은 요청은 30초 캐시)."""
         qs = dict(x.split("=", 1) for x in q.split("&") if "=" in x)
         sym = (qs.get("sym") or "SNDK").upper()
         if sym not in QUOTE:
@@ -382,7 +382,8 @@ class H(BaseHTTPRequestHandler):
         try:
             c = _hl({"type": "candleSnapshot", "req": {"coin": QUOTE[sym][1], "interval": "5m",
                                                         "startTime": start, "endTime": now}})
-            out = [{"t": int(x["t"]), "o": float(x["o"]), "c": float(x["c"])} for x in c]
+            out = [{"t": int(x["t"]), "o": float(x["o"]), "h": float(x["h"]), "l": float(x["l"]),
+                    "c": float(x["c"])} for x in c]
         except Exception as e:
             return self._send(502, ("candles fail: %s" % e).encode(), "text/plain; charset=utf-8")
         _candle_cache.clear()
