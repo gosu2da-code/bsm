@@ -12,6 +12,12 @@
   --warn-ink: #8a4b00;
   --accent: #111111;
   --input-bg: #ffffff;
+  --seg-off: #d6ebf7;
+  --seg-on: #3d8fc9;
+  --inc: #d9efd2;
+  --inc-strong: #5b9e3c;
+  --wait: #eef5ea;
+  --excl: #dcdcdc;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -28,6 +34,13 @@
     --warn-ink: #ffcf8a;
     --accent: #f1f3f5;
     --input-bg: #15171a;
+    --seg-off: #1f3445;
+    --seg-on: #3d8fc9;
+    --inc: #2b4524;
+    --inc-strong: #5b9e3c;
+    --wait: #1f2a1c;
+    --excl: #2c2f33;
+    color-scheme: dark;
   }
 }
 
@@ -102,6 +115,55 @@ body {
 .flat { fill: var(--flat); color: var(--flat); }
 .etf { fill: var(--muted); font-size: 11px; }
 .rejected { fill: var(--muted); font-size: 12px; }
+
+/* ---------- live / each 막대 ---------- */
+.modebar { width: 100%; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; font-size: 14px; }
+.mode-seg { display: inline-flex; }
+.mode-seg button, .step {
+  font: inherit; font-size: 14px; padding: 5px 14px; border: 0; margin: 0;
+  color: var(--ink); background: var(--seg-off);
+}
+.mode-seg button { cursor: pointer; }
+.mode-seg button[aria-pressed="true"] { background: var(--seg-on); color: #fff; font-weight: 600; }
+.strip { display: inline-flex; }
+/* live: 읽기 전용 진행 표시 (평평한 막대) */
+.step.inc { background: var(--inc); }
+.step.wait { background: var(--wait); color: var(--muted); }
+.step.excl { background: var(--excl); color: var(--muted); }
+.step.now { font-weight: 700; }
+.step.now::after { content: ' •'; }
+/* each: 같은 막대가 누를 수 있는 버튼으로 변신 */
+.strip.as-tabs { gap: 4px; }
+.strip.as-tabs .step {
+  cursor: pointer; border-radius: 8px; background: var(--card);
+  border: 1.5px solid var(--inc-strong); box-shadow: 0 2px 0 var(--inc-strong);
+  transform: translateY(-1px); transition: transform .15s, box-shadow .15s;
+}
+.strip.as-tabs .step:hover:not(:disabled) { transform: translateY(-2px); }
+.strip.as-tabs .step[aria-pressed="true"] { background: var(--inc-strong); color: #fff; box-shadow: none; transform: none; }
+.strip.as-tabs .step:disabled { cursor: not-allowed; border-color: var(--border); box-shadow: none; color: var(--muted); background: var(--excl); }
+.mode-seg button:focus-visible, .step:focus-visible, .sort-toggle:focus-visible, #each-date:focus-visible { outline: 2px solid var(--down); outline-offset: 2px; }
+#each-date {
+  font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--input-bg); color: var(--ink);
+}
+.each-hint { color: var(--muted); font-size: 13px; }
+.sort-toggle { margin-left: auto; }
+
+/* each 에서 마켓을 고르기 전에는 live 숫자를 흐리게 */
+.board .sector svg { transition: opacity .25s; }
+.board.dim .sector svg { opacity: .35; }
+/* 고르는 순간 숫자가 "짠" */
+.board.flash .pct, .board.flash .label-pct { animation: pop .6s ease-out; }
+@keyframes pop { 0% { opacity: .1; } 60% { opacity: 1; } 100% { opacity: 1; } }
+
+/* 종목 줄은 자리만 옮겨 다닌다 */
+.row { transition: transform 600ms cubic-bezier(.2,.7,.2,1); }
+.board.no-anim .row { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .row, .board .sector svg, .strip.as-tabs .step { transition: none; }
+  .board.flash .pct, .board.flash .label-pct { animation: none; }
+}
 
 /* ---------- 편집 ---------- */
 .edit-panel {

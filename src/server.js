@@ -9,6 +9,7 @@ const { TossClient } = require('./toss');
 const { TossRealtime } = require('./realtime');
 const { MockClient, MockRealtime } = require('./mock');
 const { QuoteEngine, describeError } = require('./quotes');
+const { SessionBook } = require('./sessions');
 
 // ---------- 구성 ----------
 
@@ -31,7 +32,9 @@ if (config.MOCK) {
     refreshToken: () => client.getToken({ force: true }),
   });
 }
-const engine = new QuoteEngine({ client, realtime, store });
+const book = new SessionBook();
+if (config.MOCK) require('./mock').seedSessions(book, store);
+const engine = new QuoteEngine({ client, realtime, store, book });
 
 // ---------- 종목 확인 ----------
 
@@ -114,6 +117,13 @@ async function handleApi(req, res, url) {
     return;
   }
   if (method === 'GET' && parts[0] === 'state') return sendJson(res, 200, engine.snapshot());
+  // 마켓별 기록이 있는 날짜 목록 / 지난 날짜의 마켓별 등락률
+  if (method === 'GET' && parts[0] === 'sessions' && parts[1] === 'dates') return sendJson(res, 200, { dates: book.dates() });
+  if (method === 'GET' && parts[0] === 'sessions' && !parts[1]) {
+    const date = url.searchParams.get('date') || '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, '날짜 형식이 올바르지 않아요');
+    return sendJson(res, 200, engine.sessionsFor(date));
+  }
   if (method === 'GET' && parts[0] === 'lookup') {
     return sendJson(res, 200, await lookupSymbol(url.searchParams.get('symbol')));
   }
@@ -177,6 +187,7 @@ server.listen(config.PORT, () => {
 
 function shutdown() {
   realtime.stop();
+  book.flush();
   for (const res of streams) res.end();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();

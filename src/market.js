@@ -44,6 +44,34 @@ function tradingDate(market, cal, now = Date.now()) {
   return cal.previousBusinessDay ? cal.previousBusinessDay.date : null;
 }
 
+// 하루 거래일 안에서 마켓이 열리는 순서
+const SESSION_ORDER = ['dayMarket', 'preMarket', 'regularMarket', 'afterMarket'];
+
+function dayOf(cal, date) {
+  if (!cal || !date) return null;
+  return [cal.previousBusinessDay, cal.today, cal.nextBusinessDay].find((d) => d && d.date === date) || null;
+}
+
+// 시각 t 의 체결이 어느 거래일의 어느 마켓에 속하는지. 마켓 밖(빈 시간)이면 null.
+function sessionAt(market, cal, t) {
+  if (!cal) return null;
+  for (const day of [cal.previousBusinessDay, cal.today, cal.nextBusinessDay]) {
+    for (const [key, s] of Object.entries(sessionsOf(market, day))) {
+      if (t >= s.start && t < s.end) return { key, date: day.date };
+    }
+  }
+  return null;
+}
+
+// 현재 거래일과, 그 거래일의 마켓별 "이미 시작했는지" 여부
+function sessionState(market, cal, now = Date.now()) {
+  const date = tradingDate(market, cal, now);
+  const sessions = sessionsOf(market, dayOf(cal, date));
+  const started = {};
+  for (const key of SESSION_ORDER) started[key] = sessions[key] ? now >= sessions[key].start : false;
+  return { date, current: currentSession(market, cal, now), started, known: Object.keys(sessions).length > 0 };
+}
+
 // 일봉(최신순)에서 기준가(전 거래일 종가)를 고른다.
 function basePriceFromCandles(candles, tradeDate) {
   if (!candles || !candles.length) return null;
@@ -61,4 +89,13 @@ function marketOfStock(stock) {
   return 'US';
 }
 
-module.exports = { SESSION_LABELS, currentSession, tradingDate, basePriceFromCandles, marketOfStock };
+module.exports = {
+  SESSION_LABELS,
+  SESSION_ORDER,
+  currentSession,
+  tradingDate,
+  sessionAt,
+  sessionState,
+  basePriceFromCandles,
+  marketOfStock,
+};

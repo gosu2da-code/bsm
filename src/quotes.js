@@ -3,7 +3,16 @@
 // 시세 엔진: 실시간 체결 + REST 보완 + 전일 종가(기준가)를 합쳐서 등락률을 만든다.
 
 const config = require('./config');
-const { currentSession, tradingDate, basePriceFromCandles, marketOfStock, SESSION_LABELS } = require('./market');
+const {
+  currentSession,
+  tradingDate,
+  sessionAt,
+  sessionState,
+  basePriceFromCandles,
+  marketOfStock,
+  SESSION_LABELS,
+  SESSION_ORDER,
+} = require('./market');
 
 const ERROR_MESSAGES = {
   'ip-not-allowed': '허용되지 않은 IP예요. 토스증권 WTS > 설정 > Open API > 허용 IP 를 확인해 주세요',
@@ -20,8 +29,9 @@ function describeError(code) {
 }
 
 class QuoteEngine {
-  constructor({ client, realtime, store }) {
+  constructor({ client, realtime, store, book }) {
     this.client = client;
+    this.book = book; // 마켓별 가격 기록 (each 모드)
     this.realtime = realtime;
     this.store = store;
     this.prices = new Map(); // symbol -> { price, at }
@@ -37,8 +47,10 @@ class QuoteEngine {
 
   start() {
     this.realtime.on('trade', ({ symbol, price }) => {
-      this.prices.set(symbol, { price, at: Date.now() });
-      this.lastTradeAt = Date.now();
+      const now = Date.now();
+      this.prices.set(symbol, { price, at: now });
+      this.lastTradeAt = now;
+      this._record(symbol, price, now);
     });
     this.realtime.on('rejected', (list) => {
       for (const r of list) {
@@ -60,6 +72,13 @@ class QuoteEngine {
     // 1분마다 거래일이 바뀌었는지 확인 (바뀌면 기준가를 다시 받는다)
     setInterval(() => this._ensureBases(), 60_000);
     this._pollLoop();
+  }
+
+  // 체결 가격을 "어느 거래일의 어느 마켓" 기록에 남긴다
+  _record(symbol, price, t) {
+    if (!this.book) return;
+    const market = marketOfStock(this.store.stockInfo(symbol) || {});
+    this.book.record(symbol, sessionAt(market, this.calendars[market], t), price, t);
   }
 
   _symbolList() {
@@ -103,7 +122,10 @@ class QuoteEngine {
         try {
           const candles = await this.client.getDailyCandles(symbol, 5);
           const base = basePriceFromCandles(candles, td);
-          if (base) this.bases.set(symbol, { base, tradeDate: td });
+          if (base) {
+            this.bases.set(symbol, { base, tradeDate: td });
+            if (this.book) this.book.setBase(symbol, td, base);
+          }
           // 실시간/현재가가 아직 없으면 최신 일봉 종가로 화면을 채운다.
           if (!this.prices.has(symbol) && candles[0]) {
             this.prices.set(symbol, { price: Number(candles[0].closePrice), at: 0 });
@@ -128,6 +150,9 @@ class QuoteEngine {
         const prev = this.prices.get(r.symbol);
         // 실시간 체결이 더 최근이면 덮어쓰지 않는다.
         if (!prev || now - prev.at > 2000) this.prices.set(r.symbol, { price: Number(r.lastPrice), at: now });
+        // 마켓별 기록은 "실제 체결 시각"으로 남긴다 (체결이 없으면 timestamp 가 null)
+        const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
+        if (Number.isFinite(t)) this._record(r.symbol, Number(r.lastPrice), t);
       }
       this.lastRestAt = now;
       this.restError = null;
@@ -159,6 +184,25 @@ class QuoteEngine {
     setTimeout(() => this._pollLoop(), 1000);
   }
 
+  // 종목의 마켓별 등락률 (date 를 안 주면 그 종목 시장의 현재 거래일)
+  _eachOf(symbol, market, date) {
+    if (!this.book) return null;
+    const td = date || tradingDate(market, this.calendars[market]);
+    const b = this.bases.get(symbol);
+    return this.book.compute(td, symbol, b && b.tradeDate === td ? b.base : null);
+  }
+
+  // 지난 날짜의 마켓별 등락률 (현재 섹터 구성 기준)
+  sessionsFor(date) {
+    return {
+      date,
+      sectors: this.store.getSectors().map((sector) => {
+        const stocks = sector.stocks.map((st) => ({ symbol: st.symbol, each: this._eachOf(st.symbol, marketOfStock(st), date) }));
+        return { id: sector.id, each: avgEach(stocks), stocks };
+      }),
+    };
+  }
+
   snapshot() {
     const now = Date.now();
     const sectors = this.store.getSectors().map((sector) => {
@@ -174,18 +218,19 @@ class QuoteEngine {
           market: marketOfStock(st),
           price,
           change,
+          each: this._eachOf(st.symbol, marketOfStock(st)),
           rejected: this.rejected.get(st.symbol) || null,
         };
       });
       const changes = stocks.map((s) => s.change).filter((c) => c != null);
       const avg = changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : null;
-      return { id: sector.id, name: sector.name, change: avg, stocks };
+      return { id: sector.id, name: sector.name, change: avg, each: avgEach(stocks), stocks };
     });
 
     const markets = {};
     for (const m of ['KR', 'US']) {
       const s = currentSession(m, this.calendars[m], now);
-      markets[m] = { session: s, label: s ? SESSION_LABELS[s] : '장 마감' };
+      markets[m] = { session: s, label: s ? SESSION_LABELS[s] : '장 마감', state: sessionState(m, this.calendars[m], now) };
     }
 
     let connection;
@@ -215,4 +260,14 @@ class QuoteEngine {
   }
 }
 
-module.exports = { QuoteEngine, describeError };
+// 섹터의 마켓별 평균 (거래 없는 종목 null 은 제외)
+function avgEach(stocks) {
+  const out = {};
+  for (const key of SESSION_ORDER) {
+    const v = stocks.map((s) => s.each && s.each[key]).filter((x) => x != null);
+    out[key] = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  }
+  return out;
+}
+
+module.exports = { QuoteEngine, describeError, avgEach };

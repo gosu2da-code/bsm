@@ -91,11 +91,18 @@ class MockClient {
     const now = Date.now();
     const iso = (t) => new Date(t).toISOString();
     const date = (offset) => new Date(now - offset * 86400_000).toISOString().slice(0, 10);
-    const session = { startTime: iso(now - 3600_000), endTime: iso(now + 5 * 3600_000) };
+    // 가짜 하루: 데이마켓은 끝났고 지금은 프리마켓 진행 중, 정규·애프터는 아직
+    const at = (h) => iso(now + h * 3600_000);
     const today =
       market === 'KR'
-        ? { date: date(0), integrated: { preMarket: null, regularMarket: session, afterMarket: null } }
-        : { date: date(0), dayMarket: null, preMarket: null, regularMarket: session, afterMarket: null };
+        ? { date: date(0), integrated: { preMarket: null, regularMarket: { startTime: at(-1), endTime: at(5) }, afterMarket: null } }
+        : {
+            date: date(0),
+            dayMarket: { startTime: at(-9), endTime: at(-1.2) },
+            preMarket: { startTime: at(-1), endTime: at(4) },
+            regularMarket: { startTime: at(4), endTime: at(10) },
+            afterMarket: { startTime: at(10), endTime: at(12) },
+          };
     return { today, previousBusinessDay: { date: date(1) }, nextBusinessDay: { date: date(-1) } };
   }
 }
@@ -126,4 +133,27 @@ class MockRealtime extends EventEmitter {
   }
 }
 
-module.exports = { MockClient, MockRealtime };
+// 가짜 데이터 모드에서 each 화면을 볼 수 있게, 오늘의 데이마켓 기록과 지난 이틀치 기록을 미리 채운다.
+function seedSessions(book, store) {
+  const day = (offset) => new Date(Date.now() - offset * 86400_000).toISOString().slice(0, 10);
+  let seed = 11;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (const symbol of store.uniqueSymbols()) {
+    const info = infoFor(symbol);
+    if (!info) continue;
+    const base = info.price;
+    // 오늘: 데이마켓만 끝난 상태 (ALOY 처럼 거래 없는 종목은 비워 둔다)
+    if (symbol !== 'ALOY') book.record(symbol, { key: 'dayMarket', date: day(0) }, base * (1 + (rand() - 0.4) * 0.03), Date.now() - 2 * 3600_000);
+    // 지난 이틀: 네 마켓 모두
+    for (const off of [1, 2]) {
+      let p = base * (1 + (rand() - 0.5) * 0.04);
+      book.setBase(symbol, day(off), p);
+      for (const key of ['dayMarket', 'preMarket', 'regularMarket', 'afterMarket']) {
+        p *= 1 + (rand() - 0.5) * 0.02;
+        book.record(symbol, { key, date: day(off) }, p, Date.now() - off * 86400_000);
+      }
+    }
+  }
+}
+
+module.exports = { MockClient, MockRealtime, seedSessions };
