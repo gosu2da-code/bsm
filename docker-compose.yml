@@ -8,3 +8,7 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
+      # 프로그램 파일을 NAS 폴더에서 바로 읽는다.
+      # 업데이트할 때 파일만 덮어쓰고 프로젝트를 "다시 시작"하면 된다 (빌드·이미지 삭제 필요 없음).
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro

@@ -65,12 +65,19 @@
 섹터·종목 구성은 `docker/sector-tree/data/sectors.json` 에 저장되어 컨테이너를 다시 만들어도 유지됩니다.
 
 ### 업데이트할 때
-1. 새 파일을 같은 폴더에 덮어씁니다 (`.env` 와 `data` 폴더는 그대로 두세요)
-2. **Container Manager → 프로젝트 → sector-tree → 작업 → 중지**
-3. 같은 메뉴에서 **빌드** (로그 끝에 `Container sector-tree Created → Started` 가 나와야 새 파일이 들어간 것)
-4. 브라우저에서 `⌘ + Shift + R` (강력 새로고침)
+`src` 와 `public` 폴더는 컨테이너가 NAS 폴더를 바로 읽기 때문에, 빌드할 필요가 없습니다.
 
-> 실행 중에 바로 빌드하면 예전 컨테이너가 그대로 다시 켜질 수 있어서, **중지 → 빌드** 순서를 지켜 주세요.
+1. 새 파일을 같은 폴더에 덮어씁니다 (`.env` 와 `data` 폴더는 그대로 두세요)
+   - 압축을 푼 폴더를 통째로 올리지 말고, `src` 안의 파일은 NAS 의 `src` 안으로, `public` 안의 파일은 NAS 의 `public` 안으로 올리세요
+2. **Container Manager → 프로젝트 → sector-tree → 작업 → 다시 시작**
+   - `public` 만 바뀌었다면 다시 시작도 필요 없습니다
+3. 앱 화면 탭을 닫고 새 탭에서 엽니다 (또는 `⌘ + Shift + R`)
+
+> 업데이트가 됐는지 확인하는 법: 업데이트 안내에 적힌 새 주소나 기능이 보이는지 확인하세요.
+> `package.json`, `Dockerfile`, `docker-compose.yml` 이 바뀌었을 때만 아래처럼 이미지를 새로 만들어야 합니다.
+> **중지 → 정리 → 이미지(`sector-tree-sector-tree`) 삭제 → 빌드**
+> (시놀로지의 "빌드" 는 이미지가 이미 있으면 그대로 다시 쓰기 때문에 이미지를 지워야 새로 만들어집니다)
+
 > `data` 폴더가 없으면 시작이 실패합니다 (`Bind mount failed`). 그때는 File Station 에서 `data` 폴더를 만들어 주세요.
 
 ## 3. 화면 위 상태 표시
