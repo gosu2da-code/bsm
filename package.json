@@ -1,0 +1,19 @@
+{
+  "name": "bsm-sector-tree",
+  "version": "1.0.0",
+  "private": true,
+  "description": "토스증권 Open API 시세로 섹터별 종목을 트리 형태로 보여주는 대시보드",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "mock": "MOCK=1 node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  }
+}
