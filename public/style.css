@@ -66,7 +66,10 @@ body {
   top: 0;
   z-index: 10;
 }
-.topbar h1 { font-size: 18px; margin: 0 8px 0 0; }
+.topbar h1 { font-size: 18px; margin: 0; white-space: nowrap; }
+.topbar .divider { width: 1px; height: 22px; background: var(--border); }
+.topbar .spacer { flex: 1; }
+.topbar .dot { cursor: help; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -75,7 +78,7 @@ body {
 }
 .chip.muted { color: var(--muted); }
 .chip.open { border-color: var(--up); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; flex: none; }
 .dot.live { background: #2fb344; box-shadow: 0 0 0 3px rgba(47, 179, 68, .2); }
 .dot.polling { background: #f2a33a; }
 
@@ -117,7 +120,6 @@ body {
 .rejected { fill: var(--muted); font-size: 12px; }
 
 /* ---------- live / each 막대 ---------- */
-.modebar { width: 100%; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; font-size: 14px; }
 .mode-seg { display: inline-flex; }
 .mode-seg button, .step {
   font: inherit; font-size: 14px; padding: 5px 14px; border: 0; margin: 0;
@@ -142,13 +144,12 @@ body {
 .strip.as-tabs .step:hover:not(:disabled) { transform: translateY(-2px); }
 .strip.as-tabs .step[aria-pressed="true"] { background: var(--inc-strong); color: #fff; box-shadow: none; transform: none; }
 .strip.as-tabs .step:disabled { cursor: not-allowed; border-color: var(--border); box-shadow: none; color: var(--muted); background: var(--excl); }
-.mode-seg button:focus-visible, .step:focus-visible, .sort-toggle:focus-visible, #each-date:focus-visible { outline: 2px solid var(--down); outline-offset: 2px; }
+.mode-seg button:focus-visible, .step:focus-visible, .btn:focus-visible, #each-date:focus-visible { outline: 2px solid var(--down); outline-offset: 2px; }
 #each-date {
   font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--input-bg); color: var(--ink);
 }
 .each-hint { color: var(--muted); font-size: 13px; }
-.sort-toggle { margin-left: auto; }
 
 /* each 에서 마켓을 고르기 전에는 live 숫자를 흐리게 */
 .board .sector svg { transition: opacity .25s; }
@@ -199,5 +200,4 @@ body {
 
 @media (max-width: 680px) {
   .board { justify-content: center; }
-  .topbar h1 { width: 100%; }
 }

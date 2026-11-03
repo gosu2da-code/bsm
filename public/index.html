@@ -9,24 +9,20 @@
 <body>
   <header class="topbar">
     <h1>섹터 트리</h1>
-    <div class="chips">
-      <span class="chip" id="chip-kr">국내 –</span>
-      <span class="chip" id="chip-us">미국 –</span>
-      <span class="chip" id="chip-conn"><i class="dot"></i><span>연결 중</span></span>
-      <span class="chip" id="chip-count">0 / 100</span>
-      <span class="chip muted" id="chip-time">–</span>
+    <i class="dot" id="conn-dot" title="연결 중" role="img" aria-label="연결 중"></i>
+    <span class="divider" aria-hidden="true"></span>
+    <div class="mode-seg" id="mode-seg" role="group" aria-label="보기 방식">
+      <button data-mode="live" aria-pressed="true">live</button>
+      <button data-mode="each" aria-pressed="false">each</button>
     </div>
-    <button id="edit-toggle" class="btn">편집</button>
-    <div class="modebar">
-      <div class="mode-seg" id="mode-seg" role="group" aria-label="보기 방식">
-        <button data-mode="live" aria-pressed="true">live</button>
-        <button data-mode="each" aria-pressed="false">each</button>
-      </div>
-      <div class="strip" id="strip" aria-label="마켓"></div>
-      <select id="each-date" aria-label="날짜" hidden></select>
-      <span class="each-hint" id="each-hint" hidden>보고 싶은 마켓을 고르세요</span>
-      <button id="sort-toggle" class="btn small sort-toggle">정렬: 등락률순</button>
-    </div>
+    <div class="strip" id="strip" aria-label="마켓"></div>
+    <select id="each-date" aria-label="날짜" hidden></select>
+    <span class="each-hint" id="each-hint" hidden>보고 싶은 마켓을 고르세요</span>
+    <span class="spacer"></span>
+    <span class="chip" id="chip-count">0 / 100</span>
+    <span class="chip muted" id="chip-time">–</span>
+    <button id="sort-toggle" class="btn small">정렬: 등락률순</button>
+    <button id="edit-toggle" class="btn small">편집</button>
   </header>
 
   <div id="banners"></div>

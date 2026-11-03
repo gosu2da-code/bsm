@@ -565,20 +565,16 @@ modeBar.sort.addEventListener('click', () => {
   update(true);
 });
 
-function renderStatus() {
-  const kr = state.markets.KR;
-  const us = state.markets.US;
-  const chip = (id, text, open) => {
-    const el = document.getElementById(id);
-    el.textContent = text;
-    el.classList.toggle('open', !!open);
-  };
-  chip('chip-kr', `국내 ${kr.label}`, kr.session);
-  chip('chip-us', `미국 ${us.label}`, us.session);
+const CONN_TEXT = { live: '실시간 연결 중', polling: '실시간 연결이 안 돼서 10초마다 조회 중', down: '서버 연결 끊김' };
+function setConn(mode) {
+  const dot = document.getElementById('conn-dot');
+  dot.className = 'dot ' + mode;
+  dot.title = CONN_TEXT[mode] || mode;
+  dot.setAttribute('aria-label', dot.title);
+}
 
-  const conn = document.getElementById('chip-conn');
-  conn.querySelector('.dot').className = 'dot ' + state.connection.mode;
-  conn.querySelector('span').textContent = state.connection.label;
+function renderStatus() {
+  setConn(state.connection.mode);
   document.getElementById('chip-count').textContent = `종목 ${state.count} / ${state.max}`;
   document.getElementById('chip-time').textContent = new Date(state.updatedAt).toLocaleTimeString('ko-KR');
 
@@ -609,10 +605,6 @@ function connect() {
       update();
     }
   };
-  es.onerror = () => {
-    const conn = document.getElementById('chip-conn');
-    conn.querySelector('.dot').className = 'dot';
-    conn.querySelector('span').textContent = '서버 연결 끊김';
-  };
+  es.onerror = () => setConn('down');
 }
 connect();
