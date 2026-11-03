@@ -35,6 +35,24 @@ async function api(method, url, body) {
   return json;
 }
 
+// 한글처럼 글자를 조합하는 입력기에서는, 조합 중에 엔터를 누르면 "조합 확정"용 엔터가 한 번 더 들어온다.
+// 조합 중인 엔터는 무시해서 같은 동작이 두 번 실행되지 않게 한다.
+function isEnter(e) {
+  return e.key === 'Enter' && !e.isComposing && e.keyCode !== 229;
+}
+
+// 편집 요청이 끝날 때까지 다른 편집 요청을 받지 않는다 (빠른 연속 클릭·엔터로 중복 생성 방지).
+let busy = false;
+async function once(fn) {
+  if (busy) return;
+  busy = true;
+  try {
+    await fn();
+  } finally {
+    busy = false;
+  }
+}
+
 async function reload() {
   state = await api('GET', '/api/state');
   render();
@@ -142,7 +160,7 @@ function attachLookup(input, preview, button) {
     timer = setTimeout(run, 350);
   });
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !button.disabled) button.click();
+    if (isEnter(e) && !button.disabled) button.click();
   });
 }
 
@@ -174,14 +192,15 @@ function editPanel(sector) {
     </div>
     <div class="preview"></div>`;
 
-  const run = (fn) => async () => {
-    try {
-      await fn();
-      await reload();
-    } catch (e) {
-      alert(e.message);
-    }
-  };
+  const run = (fn) => () =>
+    once(async () => {
+      try {
+        await fn();
+        await reload();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
 
   el.querySelector('[data-act=rename]').onclick = run(() =>
     api('PATCH', `/api/sectors/${sector.id}`, { name: el.querySelector('.sector-name').value })
@@ -238,16 +257,17 @@ function addSectorCard() {
     <div class="hint">고유 종목 ${state.count} / ${state.max}</div>`;
   const input = el.querySelector('input');
   const btn = el.querySelector('button');
-  const go = async () => {
-    try {
-      await api('POST', '/api/sectors', { name: input.value });
-      await reload();
-    } catch (e) {
-      alert(e.message);
-    }
-  };
+  const go = () =>
+    once(async () => {
+      try {
+        await api('POST', '/api/sectors', { name: input.value });
+        await reload();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
   btn.onclick = go;
-  input.addEventListener('keydown', (e) => e.key === 'Enter' && go());
+  input.addEventListener('keydown', (e) => isEnter(e) && go());
   return el;
 }
 
