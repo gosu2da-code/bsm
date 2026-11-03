@@ -457,7 +457,6 @@ const modeBar = {
   seg: document.getElementById('mode-seg'),
   strip: document.getElementById('strip'),
   date: document.getElementById('each-date'),
-  hint: document.getElementById('each-hint'),
   sort: document.getElementById('sort-toggle'),
 };
 
@@ -482,7 +481,6 @@ function renderModeBar() {
   if (modeBar.strip.innerHTML !== html) modeBar.strip.innerHTML = html;
   modeBar.strip.classList.toggle('as-tabs', ui.mode === 'each');
   modeBar.date.hidden = ui.mode !== 'each';
-  modeBar.hint.hidden = !(ui.mode === 'each' && !ui.session);
   modeBar.sort.textContent = ui.sort === 'rank' ? '정렬: 등락률순' : '정렬: 넣은 순서';
   renderDateOptions();
 }
@@ -565,12 +563,19 @@ modeBar.sort.addEventListener('click', () => {
   update(true);
 });
 
-const CONN_TEXT = { live: '실시간 연결 중', polling: '실시간 연결이 안 돼서 10초마다 조회 중', down: '서버 연결 끊김' };
+// 연결 상태: 점 색 + 글자 (마우스를 올리면 자세한 설명)
+const CONN = {
+  live: ['실시간', '토스 실시간 체결을 받는 중'],
+  polling: ['10초 조회', '실시간 연결이 안 돼서 10초마다 현재가를 조회하는 중'],
+  offline: ['연결 끊김', '이 화면과 NAS 서버의 연결이 끊겼어요. 다시 연결을 시도하는 중'],
+};
 function setConn(mode) {
-  const dot = document.getElementById('conn-dot');
-  dot.className = 'dot ' + mode;
-  dot.title = CONN_TEXT[mode] || mode;
-  dot.setAttribute('aria-label', dot.title);
+  const [text, tip] = CONN[mode] || [mode, mode];
+  const box = document.getElementById('conn');
+  box.className = 'conn ' + mode;
+  box.title = tip;
+  document.getElementById('conn-dot').className = 'dot ' + mode;
+  document.getElementById('conn-text').textContent = text;
 }
 
 function renderStatus() {
@@ -605,6 +610,6 @@ function connect() {
       update();
     }
   };
-  es.onerror = () => setConn('down');
+  es.onerror = () => setConn('offline');
 }
 connect();

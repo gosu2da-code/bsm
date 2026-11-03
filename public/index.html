@@ -9,7 +9,7 @@
 <body>
   <header class="topbar">
     <h1>섹터 트리</h1>
-    <i class="dot" id="conn-dot" title="연결 중" role="img" aria-label="연결 중"></i>
+    <span class="conn" id="conn"><i class="dot" id="conn-dot"></i><span id="conn-text">연결 중</span></span>
     <span class="divider" aria-hidden="true"></span>
     <div class="mode-seg" id="mode-seg" role="group" aria-label="보기 방식">
       <button data-mode="live" aria-pressed="true">live</button>
@@ -17,7 +17,6 @@
     </div>
     <div class="strip" id="strip" aria-label="마켓"></div>
     <select id="each-date" aria-label="날짜" hidden></select>
-    <span class="each-hint" id="each-hint" hidden>보고 싶은 마켓을 고르세요</span>
     <span class="spacer"></span>
     <span class="chip" id="chip-count">0 / 100</span>
     <span class="chip muted" id="chip-time">–</span>

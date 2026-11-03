@@ -69,7 +69,9 @@ body {
 .topbar h1 { font-size: 18px; margin: 0; white-space: nowrap; }
 .topbar .divider { width: 1px; height: 22px; background: var(--border); }
 .topbar .spacer { flex: 1; }
-.topbar .dot { cursor: help; }
+.conn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; cursor: help; }
+.conn.live { color: #2fb344; }
+.conn.polling { color: #f2a33a; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -149,7 +151,6 @@ body {
   font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--input-bg); color: var(--ink);
 }
-.each-hint { color: var(--muted); font-size: 13px; }
 
 /* each 에서 마켓을 고르기 전에는 live 숫자를 흐리게 */
 .board .sector svg { transition: opacity .25s; }
