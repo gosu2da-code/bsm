@@ -388,7 +388,8 @@ function placeCards(animate) {
 //   가까운 열: 선이 묶음 맨 위에 닿고 아래로 뻗는다
 //   먼 열:     선이 묶음 맨 아래에 닿고 위로 뻗는다 (먼 열로 가는 선이 다른 묶음을 가로지르지 않게)
 // 종목은 상위 섹터를 따라가고, 순서도 상위 섹터의 방향(+ 큰 순 / − 큰 순)을 따른다.
-const T = { W: 1360, ROW: 30, TOP: 64, LABEL_DX: 30, NEAR: 230, FAR: 450 };
+// 시안 ⑪: 글자 10/11px 보통 굵기, 줄 간격 26, 가는 회색 선, 짧은 가로선
+const T = { W: 1360, ROW: 26, TOP: 64, LABEL_DX: 30, NEAR: 170, FAR: 330, FS: 10, FSEC: 11 };
 T.CX = T.W / 2;
 const tree = { left: [], right: [], stocks: {}, view: {}, from: null, t0: 0, dur: 600, raf: 0 };
 
@@ -508,7 +509,7 @@ function treeFrame(now) {
 }
 
 function monoWidth(text, bold) {
-  canvas.font = `${bold ? 600 : 400} ${bold ? 16 : 15}px "JetBrains Mono", "D2Coding", Menlo, "Apple SD Gothic Neo", monospace`;
+  canvas.font = `400 ${bold ? T.FSEC : T.FS}px "JetBrains Mono", Menlo, "Apple SD Gothic Neo", monospace`;
   return canvas.measureText(text).width;
 }
 

@@ -3,6 +3,7 @@
   --card: #ffffff;
   --ink: #111111;
   --line: #13202e;
+  --tree-line: #808894;
   --muted: #8b95a1;
   --border: #e3e6ea;
   --up: #e5383b;
@@ -26,6 +27,7 @@
     --card: #1d2024;
     --ink: #f1f3f5;
     --line: #c9d1d9;
+    --tree-line: #6c737d;
     --muted: #8b95a1;
     --border: #30353b;
     --up: #ff5c5f;
@@ -171,11 +173,13 @@ body {
 /* ---------- 줄기 트리 ---------- */
 .tree-wrap { flex: 1 1 100%; min-width: 0; overflow-x: auto; }
 #tree { display: block; width: 100%; max-width: 1360px; min-width: 880px; height: auto; margin: 0 auto; transition: opacity .25s; }
-#tree text { font-family: var(--mono); font-size: 15px; fill: var(--ink); }
-#tree .t-sec { font-weight: 600; font-size: 16px; }
+#tree text { font-family: var(--mono); font-size: 10px; fill: var(--ink); }
+#tree .t-sec { font-weight: 400; font-size: 11px; }
+#tree .etf { font-size: 8px; }
+#tree .pct { font-size: inherit; } /* 카드 화면용 숫자 크기(18px) 규칙이 끼어들지 않게 */
 #tree .t-side { fill: var(--muted); font-size: 12px; letter-spacing: .08em; }
-#tree line { stroke: var(--line); stroke-width: 1.3; }
-#tree .t-trunk { stroke-width: 3; }
+#tree line { stroke: var(--tree-line); stroke-width: 0.75; }
+#tree .t-trunk { stroke-width: 1.5; }
 .board.dim #tree { opacity: .35; }
 
 /* ---------- 편집 ---------- */
