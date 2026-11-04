@@ -382,6 +382,196 @@ function placeCards(animate) {
   }
 }
 
+// ---------- 줄기 트리 (보기 화면) ----------
+// 가운데 줄기 하나. 왼쪽은 + 섹터(0.00% 와 – 포함), 오른쪽은 − 섹터.
+// 섹터 이름은 줄기 옆에 한 줄로, 종목 묶음은 순위에 따라 가까운 열 / 먼 열로 번갈아 놓는다.
+//   가까운 열: 선이 묶음 맨 위에 닿고 아래로 뻗는다
+//   먼 열:     선이 묶음 맨 아래에 닿고 위로 뻗는다 (먼 열로 가는 선이 다른 묶음을 가로지르지 않게)
+// 종목은 상위 섹터를 따라가고, 순서도 상위 섹터의 방향(+ 큰 순 / − 큰 순)을 따른다.
+const T = { W: 1360, ROW: 30, TOP: 64, LABEL_DX: 30, NEAR: 230, FAR: 450 };
+T.CX = T.W / 2;
+const tree = { left: [], right: [], stocks: {}, view: {}, from: null, t0: 0, dur: 600, raf: 0 };
+
+const shown = (v) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 10000) / 10000); // 화면에 보이는 값(0.01% 단위)
+const onRight = (sector) => {
+  const v = shown(sectorValue(sector));
+  return v != null && v < 0;
+};
+
+function treeOrder(full) {
+  const byId = Object.fromEntries(state.sectors.map((s) => [s.id, s]));
+  const keep = (prev, now) => [...prev.filter((x) => now.includes(x)), ...now.filter((x) => !prev.includes(x))];
+  const ids = (f) => state.sectors.filter(f).map((s) => s.id);
+  const leftIds = ids((s) => !onRight(s));
+  const rightIds = ids(onRight);
+  if (ui.sort !== 'rank') {
+    // 넣은 순서: 쪽(+/−)만 나누고 순서는 넣은 순서 그대로
+    tree.left = leftIds;
+    tree.right = rightIds;
+    for (const s of state.sectors) tree.stocks[s.id] = s.stocks.map((x) => x.symbol);
+    return;
+  }
+  const gap = full ? 0 : SORT_GAP;
+  const NONE = -1e9; // 데이터 없음(–)은 맨 아래
+  const leftVal = (id) => shown(sectorValue(byId[id])) ?? NONE;
+  const rightVal = (id) => -shown(sectorValue(byId[id]));
+  tree.left = reorder(keep(tree.left, leftIds), leftVal, gap);
+  tree.right = reorder(keep(tree.right, rightIds), rightVal, gap);
+  for (const s of state.sectors) {
+    const right = onRight(s);
+    const bySym = Object.fromEntries(s.stocks.map((x) => [x.symbol, x]));
+    const val = (sym) => {
+      const v = shown(stockValue(s, bySym[sym]));
+      return v == null ? NONE : right ? -v : v;
+    };
+    tree.stocks[s.id] = reorder(keep(tree.stocks[s.id] || [], s.stocks.map((x) => x.symbol)), val, gap);
+  }
+}
+
+// 섹터마다 목표 자리 { side, y, lane }
+function treeTargets() {
+  const { ROW, TOP } = T;
+  const out = {};
+  const count = Object.fromEntries(state.sectors.map((s) => [s.id, Math.max(1, s.stocks.length)]));
+  for (const [sign, list] of [[-1, tree.left], [1, tree.right]]) {
+    let prevY = -Infinity, nearEnd = -Infinity, farEnd = TOP - ROW * 1.3;
+    list.forEach((id, i) => {
+      const lane = i % 2; // 1위 가까운 열, 2위 먼 열, 3위 가까운 열 …
+      const n = count[id];
+      let y;
+      if (lane === 0) {
+        y = Math.max(TOP, prevY + ROW * 1.4, nearEnd + ROW * 1.3);
+        nearEnd = y + (n - 1) * ROW;
+      } else {
+        y = Math.max(TOP, prevY + ROW * 1.4, nearEnd + ROW, farEnd + ROW * 1.3 + (n - 1) * ROW);
+        farEnd = y;
+      }
+      prevY = y;
+      out[id] = { side: sign, y, lane };
+    });
+  }
+  return out;
+}
+function treeRows(id, lane) {
+  const list = tree.stocks[id] || [];
+  const n = list.length;
+  return Object.fromEntries(list.map((sym, i) => [sym, lane ? (i - (n - 1)) * T.ROW : i * T.ROW]));
+}
+
+// 새 목표로 옮겨 가기 시작 (animate=false 면 바로 그 자리에)
+function treeLayout(full, animate) {
+  treeOrder(full);
+  const tg = treeTargets();
+  const from = {};
+  for (const s of state.sectors) {
+    const t = tg[s.id];
+    const target = { side: t.side, y: t.y, laneX: t.lane ? T.FAR : T.NEAR, alpha: 1, rows: treeRows(s.id, t.lane) };
+    const v = tree.view[s.id];
+    if (!v || !animate || reduceMotion) {
+      tree.view[s.id] = { ...target, rows: { ...target.rows }, target };
+      from[s.id] = { ...target, rows: { ...target.rows } };
+      continue;
+    }
+    // 줄기를 건너갈 때는 새 자리에서 흐릿하게 나타난다
+    from[s.id] = v.side !== t.side ? { ...target, alpha: 0, rows: { ...target.rows } } : { ...v, rows: { ...v.rows } };
+    v.target = target;
+  }
+  for (const id of Object.keys(tree.view)) if (!tg[id]) delete tree.view[id];
+  tree.from = from;
+  tree.t0 = performance.now();
+  if (!tree.raf) tree.raf = requestAnimationFrame(treeFrame);
+}
+
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+function treeFrame(now) {
+  tree.raf = 0;
+  if (!tree.from) return;
+  const p = Math.min(1, (now - tree.t0) / tree.dur);
+  const e = easeOut(p);
+  for (const s of state.sectors) {
+    const v = tree.view[s.id];
+    const f = tree.from[s.id];
+    if (!v || !f || !v.target) continue;
+    const t = v.target;
+    v.side = t.side;
+    v.y = f.y + (t.y - f.y) * e;
+    v.laneX = f.laneX + (t.laneX - f.laneX) * e;
+    v.alpha = f.alpha + (t.alpha - f.alpha) * e;
+    for (const sym of Object.keys(t.rows)) {
+      const a = f.rows[sym] ?? t.rows[sym];
+      v.rows[sym] = a + (t.rows[sym] - a) * e;
+    }
+  }
+  treeDraw();
+  if (p < 1) tree.raf = requestAnimationFrame(treeFrame);
+  else tree.from = null;
+}
+
+function monoWidth(text, bold) {
+  canvas.font = `${bold ? 600 : 400} ${bold ? 16 : 15}px "JetBrains Mono", "D2Coding", Menlo, "Apple SD Gothic Neo", monospace`;
+  return canvas.measureText(text).width;
+}
+
+function treeDraw() {
+  const svg = document.getElementById('tree');
+  if (!svg) return;
+  const { CX, TOP, LABEL_DX } = T;
+  const parts = [];
+  let bottom = TOP;
+  for (const s of state.sectors) {
+    const v = tree.view[s.id];
+    if (!v) continue;
+    const sg = v.side;
+    const anchor = sg > 0 ? 'start' : 'end';
+    const p = fmtPct(sectorValue(s));
+    const lx = CX + sg * LABEL_DX;
+    const y = v.y;
+    const g = [];
+    g.push(`<line x1="${CX}" y1="${y}" x2="${lx - sg * 8}" y2="${y}"/>`);
+    g.push(`<text x="${lx}" y="${y + 5}" text-anchor="${anchor}" class="t-sec"><tspan>${esc(s.name)}</tspan><tspan class="pct ${p.cls}" dx="10">${p.text}</tspan></text>`);
+    if (s.stocks.length) {
+      const labelW = monoWidth(s.name, true) + 10 + monoWidth(p.text, true);
+      const bx = CX + sg * v.laneX;
+      g.push(`<line x1="${lx + sg * (labelW + 12)}" y1="${y}" x2="${bx}" y2="${y}"/>`);
+      const ys = s.stocks.map((x) => y + (v.rows[x.symbol] ?? 0));
+      g.push(`<line x1="${bx}" y1="${Math.min(...ys)}" x2="${bx}" y2="${Math.max(...ys)}"/>`);
+      for (const st of s.stocks) {
+        const ty = y + (v.rows[st.symbol] ?? 0);
+        const q = fmtPct(stockValue(s, st));
+        const etf = st.securityType === 'ETF' ? `<tspan class="etf" dx="6">ETF</tspan>` : '';
+        g.push(`<line x1="${bx}" y1="${ty}" x2="${bx + sg * 12}" y2="${ty}"/>`);
+        g.push(`<text x="${bx + sg * 20}" y="${ty + 5}" text-anchor="${anchor}"><title>${esc(st.name)}</title><tspan>${esc(st.symbol)}</tspan>${etf}<tspan class="pct ${q.cls}" dx="10">${q.text}</tspan></text>`);
+        bottom = Math.max(bottom, ty);
+      }
+    } else {
+      bottom = Math.max(bottom, y);
+    }
+    parts.push(`<g opacity="${v.alpha.toFixed(3)}">${g.join('')}</g>`);
+  }
+  const H = Math.max(200, bottom + 44);
+  const head = `<text class="t-side" x="${CX - 16}" y="${TOP - 40}" text-anchor="end">오르는 섹터 +</text><text class="t-side" x="${CX + 16}" y="${TOP - 40}">− 내리는 섹터</text>`;
+  const trunk = `<line class="t-trunk" x1="${CX}" y1="${TOP - 30}" x2="${CX}" y2="${H - 20}"/>`;
+  svg.setAttribute('viewBox', `0 0 ${T.W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.innerHTML = head + trunk + parts.join('');
+}
+
+function renderTree() {
+  tree.view = {};
+  tree.from = null;
+  board.innerHTML = state.sectors.length
+    ? `<div class="tree-wrap"><svg id="tree" width="${T.W}" viewBox="0 0 ${T.W} 400" role="img" aria-label="섹터 줄기 트리"></svg></div>`
+    : '<p class="hint">섹터가 없어요. 오른쪽 위 <b>편집</b>을 눌러 추가해 주세요.</p>';
+  treeLayout(true, false);
+  treeDraw();
+}
+
+function updateTree(full) {
+  board.classList.toggle('dim', ui.mode === 'each' && !ui.session);
+  treeLayout(full, true);
+  if (!tree.raf) treeDraw();
+}
+
 // ---------- 렌더링 ----------
 function signature() {
   return JSON.stringify([editMode, state.sectors.map((s) => [s.id, s.name, s.stocks.map((x) => [x.symbol, x.rejected])])]);
@@ -390,6 +580,15 @@ function signature() {
 // 구조(섹터·종목 구성)가 바뀌었을 때만 카드를 새로 만든다. 그 밖에는 숫자와 자리만 바꾼다.
 function render() {
   structureSig = signature();
+  if (!editMode) {
+    // 보기 화면: 줄기 트리
+    board.classList.toggle('dim', ui.mode === 'each' && !ui.session);
+    renderTree();
+    renderStatus();
+    renderModeBar();
+    return;
+  }
+  // 편집 화면: 섹터 카드 + 편집 칸 (넣은 순서)
   computeOrder(true);
   board.innerHTML = '';
   for (const sector of state.sectors) {
@@ -417,6 +616,12 @@ function render() {
 
 // 1초마다: 숫자를 바꾸고, 정렬이 켜져 있으면 자리도 바꾼다
 function update(full = false) {
+  if (!editMode) {
+    updateTree(full);
+    renderStatus();
+    renderModeBar();
+    return;
+  }
   computeOrder(full);
   placeCards(true);
   updateNumbers();
