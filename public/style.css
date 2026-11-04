@@ -1,3 +1,7 @@
+/* 고정폭 글꼴 D2Coding (NAVER, SIL OFL 1.1) — NAS 에서 바로 내려받아 인터넷이 없어도 같은 모양 */
+@font-face { font-family: "D2Coding"; src: url("fonts/D2Coding.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "D2Coding"; src: url("fonts/D2Coding-Bold.woff2") format("woff2"); font-weight: 600 700; font-display: swap; }
+
 :root {
   --bg: #f7f8fa;
   --card: #ffffff;
@@ -12,7 +16,7 @@
   --warn-ink: #8a4b00;
   --accent: #111111;
   --input-bg: #ffffff;
-  --mono: "JetBrains Mono", "D2Coding", "SF Mono", Menlo, "Apple SD Gothic Neo", "Noto Sans KR", monospace;
+  --mono: "D2Coding", "SF Mono", Menlo, "Apple SD Gothic Neo", "Noto Sans KR", monospace;
   --seg-off: #d6ebf7;
   --seg-on: #3d8fc9;
   --inc: #d9efd2;

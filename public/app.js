@@ -508,7 +508,7 @@ function treeFrame(now) {
 }
 
 function monoWidth(text, bold) {
-  canvas.font = `${bold ? 600 : 400} ${bold ? 16 : 15}px "JetBrains Mono", "D2Coding", Menlo, "Apple SD Gothic Neo", monospace`;
+  canvas.font = `${bold ? 600 : 400} ${bold ? 16 : 15}px "D2Coding", "SF Mono", Menlo, "Apple SD Gothic Neo", monospace`;
   return canvas.measureText(text).width;
 }
 
@@ -818,3 +818,7 @@ function connect() {
   es.onerror = () => setConn('offline');
 }
 connect();
+// 글꼴 파일을 다 받은 뒤 한 번 더 그린다 (글자 폭을 새 글꼴 기준으로 다시 재서 선 길이를 맞추기 위해)
+document.fonts.ready.then(() => {
+  if (state && !editMode) treeDraw();
+});
